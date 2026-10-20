@@ -42,7 +42,7 @@ struct MainTabView: View {
             TabItem.namedLibrary(
                 libraryName: "Concerts",
                 title: "Concerts",
-                systemName: "movieclapper"
+                systemName: "music.mic"
             )
             TabItem.namedLibrary(
                 libraryName: "Videoclips",
