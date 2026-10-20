@@ -6,8 +6,67 @@
 // Copyright (c) 2026 Jellyfin & Jellyfin Contributors
 //
 
+import FactoryKit
 import JellyfinAPI
 import SwiftUI
+
+/// Shows the library whose name matches `name`, looked up in the user's views when the tab appears.
+private struct NamedLibraryTabView: View {
+
+    private struct LibraryNotFound: LocalizedError {
+
+        let name: String
+
+        var errorDescription: String? {
+            "Library \"\(name)\" not found"
+        }
+    }
+
+    @Injected(\.currentUserSession)
+    private var userSession
+
+    let name: String
+
+    @State
+    private var library: BaseItemDto?
+    @State
+    private var error: Error?
+
+    var body: some View {
+        Group {
+            if let library {
+                PagingLibraryView(library: ItemLibrary(parent: library))
+            } else if let error {
+                ErrorView(error: error)
+            } else {
+                ProgressView()
+            }
+        }
+        .task(id: name) {
+            await loadLibrary()
+        }
+    }
+
+    private func loadLibrary() async {
+        guard let userSession else { return }
+
+        do {
+            let request = Paths.getUserViews(parameters: .init(userID: userSession.user.id))
+            let response = try await userSession.client.send(request)
+
+            guard let match = response.value.items?.first(where: {
+                $0.name?.caseInsensitiveCompare(name) == .orderedSame
+            }) else {
+                error = LibraryNotFound(name: name)
+                return
+            }
+
+            library = match
+        } catch {
+            self.error = error
+        }
+    }
+}
 
 // TODO: selected icon
 @MainActor
@@ -99,6 +158,24 @@ extension TabItem {
             .if(UIDevice.isTV) { view in
                 view.toolbar(.hidden, for: .navigationBar)
             }
+        }
+    }
+
+    /// A tab for the server library named `libraryName`, resolved by name so it survives the library being recreated.
+    static func namedLibrary(
+        libraryName: String,
+        title: String,
+        systemName: String
+    ) -> TabItem {
+        TabItem(
+            id: "named-library-\(libraryName)",
+            title: title,
+            systemImage: systemName
+        ) {
+            NamedLibraryTabView(name: libraryName)
+                .if(UIDevice.isTV) { view in
+                    view.toolbar(.hidden, for: .navigationBar)
+                }
         }
     }
 

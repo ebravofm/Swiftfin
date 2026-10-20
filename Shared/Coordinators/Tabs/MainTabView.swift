@@ -39,15 +39,15 @@ struct MainTabView: View {
         #else
         TabCoordinator {
             TabItem.contentGroup(provider: DefaultContentGroupProvider())
-            TabItem.library(
-                title: L10n.tvShowsCapitalized,
-                systemName: "tv",
-                filters: .init(itemTypes: [.series])
+            TabItem.namedLibrary(
+                libraryName: "Concerts",
+                title: "Concerts",
+                systemName: "movieclapper"
             )
-            TabItem.library(
-                title: L10n.movies,
-                systemName: "film",
-                filters: .init(itemTypes: [.movie])
+            TabItem.namedLibrary(
+                libraryName: "Videoclips",
+                title: "Video Clips",
+                systemName: "music.note.tv"
             )
             TabItem.search
             TabItem.media
