@@ -37,13 +37,20 @@ extension BaseItemDto: LibraryParent {
         supportedItemTypes(for: nil)
     }
 
-    /// Folder libraries browse direct children, including nested folders
+    /// Folder libraries browse direct children, including nested folders.
+    /// Music video libraries are organized by artist folders, so they browse the same way.
     var isFolderCollection: Bool {
         libraryType == .folder ||
-            ((libraryType == .collectionFolder || libraryType == .userView) && (collectionType ?? .folders) == .folders)
+            ((libraryType == .collectionFolder || libraryType == .userView) &&
+                [.folders, .musicvideos].contains(collectionType ?? .folders))
     }
 
     func supportedItemTypes(for grouping: Grouping?) -> [BaseItemKind] {
+        // Artist folders and their clips are both landscape, so the library renders landscape cards.
+        if collectionType == .musicvideos, libraryType == .collectionFolder || libraryType == .userView {
+            return [.folder, .musicVideo]
+        }
+
         if isFolderCollection {
             return BaseItemKind.supportedCases.appending([.folder, .collectionFolder])
         }
