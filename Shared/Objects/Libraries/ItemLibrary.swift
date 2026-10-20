@@ -173,7 +173,9 @@ struct ItemLibrary: MediaLibrary, SearchablePagingLibrary, WithRandomElementLibr
 
         if parent.isFolderCollection {
             parameters.parentID = parentID
-            parameters.isRecursive = nil
+            // With explicit item types the server treats an omitted value as recursive,
+            // which would list every clip next to its artist folder.
+            parameters.isRecursive = parent.collectionType == .musicvideos ? false : nil
             return parameters
         }
 
