@@ -65,6 +65,9 @@ extension BaseItemDto: LibraryParent {
         case (.movies, _):
             [.movie]
 
+        case (.playlists, _):
+            [.playlist]
+
         case (.music, _):
             [.audio, .musicAlbum, .musicArtist]
 

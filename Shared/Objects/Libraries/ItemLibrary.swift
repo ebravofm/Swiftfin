@@ -116,6 +116,12 @@ struct ItemLibrary: MediaLibrary, SearchablePagingLibrary, WithRandomElementLibr
         )
         parameters.userID = pageState.userSession.user.id
 
+        // Without an explicit sort the server returns a playlist in the order it was built.
+        if parent.libraryType == .playlist {
+            parameters.sortBy = nil
+            parameters.sortOrder = nil
+        }
+
         let request = Paths.getItems(parameters: parameters)
         let response = try await pageState.userSession.client.send(request)
 
@@ -505,10 +511,11 @@ private struct LibraryPlayBar: View {
     let parent: BaseItemDto
 
     private var isVisible: Bool {
-        guard parent.id != nil, parent.collectionType != .livetv else { return false }
+        // The playlists view only lists playlists, so there is nothing to play at that level.
+        guard parent.id != nil, parent.collectionType != .livetv, parent.collectionType != .playlists else { return false }
 
         switch parent.libraryType {
-        case .collectionFolder, .userView, .folder:
+        case .collectionFolder, .userView, .folder, .playlist:
             return true
         default:
             return false
@@ -557,8 +564,14 @@ private struct LibraryPlayBar: View {
                 parameters.fields = PosterSubtitleField.itemFields
                 parameters.enableUserData = true
                 parameters.limit = 1000
-                parameters.sortBy = shuffle ? [.random] : [.artist, .sortName]
-                parameters.sortOrder = [.ascending]
+
+                if shuffle {
+                    parameters.sortBy = [.random]
+                } else if parent.libraryType != .playlist {
+                    // A playlist keeps the order it was built in, so it gets no sort.
+                    parameters.sortBy = [.artist, .sortName]
+                    parameters.sortOrder = [.ascending]
+                }
 
                 let response = try await userSession.client.send(Paths.getItems(parameters: parameters))
 
