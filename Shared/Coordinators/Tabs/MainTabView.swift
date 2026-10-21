@@ -49,6 +49,11 @@ struct MainTabView: View {
                 title: "Video Clips",
                 systemName: "music.note.tv"
             )
+            TabItem.namedLibrary(
+                libraryName: "Playlists",
+                title: "Playlists",
+                systemName: "music.note.list"
+            )
             TabItem.search
             TabItem.media
             TabItem.settings
