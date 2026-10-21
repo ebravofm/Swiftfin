@@ -16,6 +16,9 @@ extension BaseItemDto {
             extraType.displayTitle
         } else if type == .person {
             subtitle
+        } else if type == .musicVideo, let artist = artists?.first {
+            // Titles are just the song, so the artist goes on the line below.
+            artist
         } else {
             posterSubtitleValue(for: field)
         }
