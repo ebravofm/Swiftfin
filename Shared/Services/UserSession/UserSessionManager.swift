@@ -102,9 +102,21 @@ final class UserSessionManager: ObservableObject {
     }
 
     @MainActor
-    private func refreshCurrentSession() async {
+    private func refreshCurrentSession(keepingUnchangedSession: Bool = false) async {
         do {
-            try await updateCurrentSession(with: resolveStoredSession())
+            let storedSession = try resolveStoredSession()
+
+            // Replacing an identical session invalidates the items held by views already on screen,
+            // which then show no results and never reload.
+            if keepingUnchangedSession,
+               let storedSession,
+               let currentSession,
+               currentSession.hasSameIdentity(as: storedSession)
+            {
+                return
+            }
+
+            await updateCurrentSession(with: storedSession)
         } catch {
             logger.error(
                 "Unable to refresh current user session",
@@ -195,7 +207,7 @@ final class UserSessionManager: ObservableObject {
 
     @MainActor
     func appWillEnterForeground() async {
-        await refreshCurrentSession()
+        await refreshCurrentSession(keepingUnchangedSession: true)
 
         Task {
             await refreshServerInformationIfNeeded(reason: .stale)
