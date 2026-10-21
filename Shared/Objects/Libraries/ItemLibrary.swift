@@ -125,7 +125,37 @@ struct ItemLibrary: MediaLibrary, SearchablePagingLibrary, WithRandomElementLibr
         let request = Paths.getItems(parameters: parameters)
         let response = try await pageState.userSession.client.send(request)
 
+        if parent.collectionType == .playlists {
+            await cacheCovers(of: response.value.items ?? [], using: pageState.userSession)
+        }
+
         return try pageState.items(from: response)
+    }
+
+    /// Remembers each playlist's first item, so its card can show that item's poster
+    /// instead of the mosaic Jellyfin builds from several items.
+    private func cacheCovers(of playlists: [BaseItemDto], using userSession: UserSession) async {
+        for playlist in playlists {
+            guard let playlistID = playlist.id else { continue }
+
+            var parameters = Paths.GetItemsParameters()
+            parameters.userID = userSession.user.id
+            parameters.parentID = playlistID
+            parameters.isRecursive = true
+            parameters.includeItemTypes = [.movie, .musicVideo, .video, .episode]
+            parameters.limit = 1
+
+            let response = try? await userSession.client.send(Paths.getItems(parameters: parameters))
+
+            if let first = response?.value.items?.first,
+               let itemID = first.id,
+               let tag = first.imageTags?["Primary"]
+            {
+                PlaylistCoverStore.shared.set(.init(itemID: itemID, tag: tag), forPlaylist: playlistID)
+            } else {
+                PlaylistCoverStore.shared.set(nil, forPlaylist: playlistID)
+            }
+        }
     }
 
     func retrieveRandomElement(
@@ -366,6 +396,39 @@ private struct ItemLibraryBody<Content: View>: View {
             .mutating(\.sortOrder, with: filters.sortOrder)
 
         StoredValues[.User.libraryFilters(parentID: id)] = storedFilters
+    }
+}
+
+// MARK: - Playlist covers
+
+/// The poster of each playlist's first item, filled when the playlists are listed.
+///
+/// A playlist's own image is a mosaic Jellyfin builds from several items, which looks odd on a card.
+final class PlaylistCoverStore {
+
+    struct Cover {
+
+        let itemID: String
+        let tag: String
+    }
+
+    static let shared = PlaylistCoverStore()
+
+    private let lock = NSLock()
+    private var covers: [String: Cover] = [:]
+
+    func cover(forPlaylist id: String?) -> Cover? {
+        guard let id else { return nil }
+
+        lock.lock()
+        defer { lock.unlock() }
+        return covers[id]
+    }
+
+    func set(_ cover: Cover?, forPlaylist id: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        covers[id] = cover
     }
 }
 
