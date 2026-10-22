@@ -88,6 +88,16 @@ Los títulos de los clips son solo la canción, así que el artista se muestra a
 
 **Estado:** arreglo por lectura de código. No se sabe por qué volver de inmediato no lo disparaba (hipótesis: tvOS tarda en enviar la notificación de primer plano). **Sin verificar** en el Apple TV; ver "Pendiente".
 
+### Límites de H.264 por modelo (Apple TV HD)
+
+**Problema:** un concierto en 2560×1440, H.264 nivel 5.0, se reproducía con desfase y pocos fotogramas. Swiftfin declaraba al servidor que el Apple TV reproduce H.264 hasta el nivel 8.0 y sin límite de resolución, así que Jellyfin respondía `DirectPlay`. El Apple TV HD (`AppleTV5,3`, chip A8) decodifica H.264 por hardware solo hasta 1080p, y lo demás cae a software.
+
+**Arreglo:** `PlaybackCapabilities.h264Limits` devuelve los límites según el identificador del modelo (`modelIdentifier`, leído con `uname`). Para `AppleTV5,3`: 1920×1080, nivel 4.2 y 60 fps. Los demás modelos devuelven `nil` y siguen con el perfil de antes (nivel 8.0, sin límite de resolución). `_h264BaseConditions` (en `VideoPlayerType+Shared.swift`, usado por AVPlayer y VLC) agrega las condiciones `width`, `height` y `videoFramerate` y baja el nivel cuando hay límites. Lo que los exceda lo transcodifica el servidor.
+
+**Estado:** sin compilar en el CI ni probar en el Apple TV. Pendiente comprobar que `uname` devuelve `AppleTV5,3` en el dispositivo y que la sesión pasa de `DirectPlay` a transcode (un `FFmpeg.Transcode-*.log` con `h264_vaapi` y `scale_vaapi=w=1920:h=1080`). El servidor ya se probó pidiendo ese transcode por HLS: 7,5 veces el tiempo real, ver `cursor-agent/jellyfin-transcode-apple-tv-hd/README.md`.
+
+**Siguientes pasos previstos:** HDR y Dolby Vision (requiere activar `EnableTonemapping` en Jellyfin), subtítulos gráficos grabados en el video por el servidor, y un tope de bitrate.
+
 ## El servidor Jellyfin
 
 Esto vive fuera de este repo, pero el comportamiento de la app depende de ello.
