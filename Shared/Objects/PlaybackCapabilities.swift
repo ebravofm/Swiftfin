@@ -57,9 +57,10 @@ enum PlaybackCapabilities {
     static var h264Limits: H264Limits? {
         switch modelIdentifier {
         case "AppleTV5,3": // Apple TV HD (A8)
-            return H264Limits(width: 1920, height: 1080, level: 42, framerate: 60)
+            H264Limits(width: 1920, height: 1080, level: 42, framerate: 60)
+
         default:
-            return nil
+            nil
         }
     }
 
