@@ -2000,6 +2000,10 @@ internal enum L10n {
   internal static let vlc = L10n.tr("Localizable", "vlc", fallback: "VLC")
   /// Volume
   internal static let volume = L10n.tr("Localizable", "volume", fallback: "Volume")
+  /// Volume normalization
+  internal static let volumeNormalization = L10n.tr("Localizable", "volumeNormalization", fallback: "Volume normalization")
+  /// Evens out loudness differences between videos. Only applies to the VLC player.
+  internal static let volumeNormalizationDescription = L10n.tr("Localizable", "volumeNormalizationDescription", fallback: "Evens out loudness differences between videos. Only applies to the VLC player.")
   /// Votes
   internal static let votes = L10n.tr("Localizable", "votes", fallback: "Votes")
   /// Weekday

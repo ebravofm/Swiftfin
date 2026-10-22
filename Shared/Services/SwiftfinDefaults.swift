@@ -290,6 +290,10 @@ extension Defaults.Keys {
             UserKey("resumeOffset", default: 0)
         }
 
+        static var volumeNormalization: Key<Bool> {
+            UserKey("volumeNormalization", default: false)
+        }
+
         static var supplements: Key<[VideoPlayerSupplement]> {
             UserKey(
                 "videoPlayerSupplements",

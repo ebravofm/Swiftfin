@@ -202,6 +202,10 @@ class VLCMediaPlayerProxy: VideoMediaPlayerLayoutConfigurable,
                 media.addOption(":freetype-color=\(color)")
             }
 
+            if Defaults[.VideoPlayer.volumeNormalization] {
+                media.addOption(":audio-filter=normvol")
+            }
+
             try player.play(media)
             setSubtitleConfiguration(subtitleConfiguration)
         } catch {

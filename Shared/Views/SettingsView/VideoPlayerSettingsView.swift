@@ -40,6 +40,11 @@ struct VideoPlayerSettingsView: View {
     @Default(.VideoPlayer.resumeOffset)
     private var resumeOffset
 
+    // MARK: - Audio Defaults
+
+    @Default(.VideoPlayer.volumeNormalization)
+    private var volumeNormalization
+
     // MARK: - Slider Defaults
 
     @Default(.VideoPlayer.Overlay.chapterSlider)
@@ -96,6 +101,8 @@ struct VideoPlayerSettingsView: View {
             buttonSettings
 
             resumeSettings
+
+            audioSettings
 
             sliderSettings
 
@@ -250,6 +257,19 @@ struct VideoPlayerSettingsView: View {
             Text(L10n.resume)
         } footer: {
             Text(L10n.resumeOffsetDescription)
+        }
+    }
+
+    // MARK: - Audio Settings
+
+    @ViewBuilder
+    private var audioSettings: some View {
+        Section {
+            Toggle(L10n.volumeNormalization, isOn: $volumeNormalization)
+        } header: {
+            Text(L10n.audio)
+        } footer: {
+            Text(L10n.volumeNormalizationDescription)
         }
     }
 
