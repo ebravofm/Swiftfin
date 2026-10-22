@@ -102,8 +102,6 @@ struct VideoPlayerSettingsView: View {
 
             resumeSettings
 
-            audioSettings
-
             sliderSettings
 
             supplementSettings
@@ -260,19 +258,6 @@ struct VideoPlayerSettingsView: View {
         }
     }
 
-    // MARK: - Audio Settings
-
-    @ViewBuilder
-    private var audioSettings: some View {
-        Section {
-            Toggle(L10n.volumeNormalization, isOn: $volumeNormalization)
-        } header: {
-            Text(L10n.audio)
-        } footer: {
-            Text(L10n.volumeNormalizationDescription)
-        }
-    }
-
     // MARK: - Slider Settings
 
     @ViewBuilder
@@ -331,6 +316,8 @@ struct VideoPlayerSettingsView: View {
                     updateConfiguration { $0.isRememberAudioSelections = newValue }
                 }
             ))
+
+            Toggle(L10n.volumeNormalization, isOn: $volumeNormalization)
         } learnMore: {
             LabeledContent(
                 L10n.playDefault,
