@@ -160,16 +160,20 @@ Compilar en local exigiría Xcode 26. Según la tabla de Apple, Xcode 26.0–26.
 
 ## Instalar en el Apple TV
 
-Desde el 2026-10-23 el Apple TV está con jailbreak y la app se instala por SSH, firmada con `ldid`: ver `/Users/laptop/Documents/Proyectos/tvos-jailbreak/CLAUDE.md`. La firma necesita los entitlements `application-identifier` y `keychain-access-groups` (`org.jellyfin.swiftfin`). Sin ellos, el token no se guarda en el Keychain y el servidor responde 401 (`"Token is required"`).
+El Apple TV (`192.168.100.10`) tiene jailbreak rootful con palera1n y AppSync Unified. El IPA sin firmar del CI se instala por SSH en `/Applications/Swiftfin.app` y se firma ad-hoc con `ldid`. El *bundle id* es el original, `org.jellyfin.swiftfin`, y la firma no caduca. La guía completa, con el acceso SSH y qué hacer si se pierde el jailbreak, está en `/Users/laptop/Documents/Proyectos/tvos-jailbreak/CLAUDE.md`.
 
-Antes se instalaba así: el IPA no está firmado. Se firma e instala con **Sideloadly** y un Apple ID gratuito.
+1. Bajar el IPA de la última build exitosa de la rama, y comprobar que el `headSha` sea el último commit:
+   ```bash
+   gh run list -b <rama> -w "Build 🔨" -L 3 --json databaseId,conclusion,headSha
+   gh run download <databaseId> -n "Swiftfin tvOS-unsigned" -D <carpeta-vacía>
+   ```
+2. Descomprimir en el Mac (el Apple TV no tiene `unzip`) y empaquetar el `.app` con `COPYFILE_DISABLE=1 tar -C <carpeta>/Payload -cf swiftfin.tar Swiftfin.app`.
+3. Pasar el `.tar` y los entitlements a `/tmp` del Apple TV: `scp swiftfin.tar swiftfin.entitlements appletv:/tmp/`. El alias `appletv` de `~/.ssh/config` entra como `root` con la llave `~/.ssh/appletv`, sin contraseña.
+4. En el Apple TV: `killall Swiftfin`, descomprimir el `.tar`, reemplazar `/Applications/Swiftfin.app`, `chown -R root:wheel` y `chmod -R 755`.
+5. Firmar los frameworks (`ldid -S` a cada `Frameworks/*.framework/<nombre>`; hoy solo `Libmpv`) y el ejecutable con `ldid -S/tmp/swiftfin.entitlements /Applications/Swiftfin.app/Swiftfin`.
+6. `uicache -a` y `launchctl reboot userspace` (no quita el jailbreak).
 
-- Se instala con un *bundle id* propio, **`cl.datapulse.swiftfinprueba`** (*Advanced Options → Bundle ID*). Hay que **comprobar que el campo quedó con ese valor** antes de pulsar *Start*: una vez no se guardó y salió el error `MismatchedApplicationIdentifierEntitlement`.
-- Los identificadores `org.jellyfin.…` no sirven: Apple responde `An App ID with Identifier … is not available`.
-- Con otro *bundle id* la app queda **al lado** de la Swiftfin existente (que tenía otro equipo de firma), no encima, y empieza sin sesión: hay que volver a agregar el servidor.
-- Con un Apple ID gratuito el certificado dura **7 días**.
-- Una instalación con el mismo *bundle id* se actualiza sobre la anterior sin perder la sesión.
-
+Los entitlements tienen que incluir `application-identifier` y `keychain-access-groups` con `org.jellyfin.swiftfin`, además de `platform-application`, `com.apple.private.skip-library-validation` y `get-task-allow`. **Sin `com.apple.private.security.no-container`.** Sin los del Keychain, el token de sesión no se guarda, la app manda las peticiones sin token y el servidor responde 401 (`"Token is required"` en el log de Jellyfin). Comprobar después de firmar con `ldid -e /Applications/Swiftfin.app/Swiftfin`.
 ## Herramientas para depurar en el Apple TV
 
 Se usaron, solo en local y sin versionar (`.venv` está excluido de git):
