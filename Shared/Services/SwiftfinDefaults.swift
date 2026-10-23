@@ -163,7 +163,7 @@ extension Defaults.Keys {
         }
 
         static var tabBarPlacement: Key<TabBarPlacement> {
-            UserKey("tabBarPlacement", default: .sidebar)
+            UserKey("tabBarPlacement", default: .tabBar)
         }
 
         enum Poster {
@@ -288,6 +288,10 @@ extension Defaults.Keys {
 
         static var resumeOffset: Key<Int> {
             UserKey("resumeOffset", default: 0)
+        }
+
+        static var volumeNormalization: Key<Bool> {
+            UserKey("volumeNormalization", default: false)
         }
 
         static var supplements: Key<[VideoPlayerSupplement]> {

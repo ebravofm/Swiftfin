@@ -116,6 +116,11 @@ extension BaseItemDto: Poster {
                 imageSource(.backdrop, itemID: id, environment: environment)
             }
 
+            // A playlist's own image is a mosaic of several items; prefer its first item's poster.
+            if type == .playlist, let cover = PlaylistCoverStore.shared.cover(forPlaylist: id) {
+                imageSource(.primary, itemID: cover.itemID, tag: cover.tag, environment: environment)
+            }
+
             // Program squares represent the channel in the guide.
             if displayType == .square, isProgram {
                 imageSource(.primary, itemID: channelID, tag: channelPrimaryImageTag, environment: environment)

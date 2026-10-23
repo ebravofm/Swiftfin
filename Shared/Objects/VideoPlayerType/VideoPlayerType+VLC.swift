@@ -120,7 +120,8 @@ extension VideoPlayerType {
             VideoCodec.mpeg4
             VideoCodec.vp9
         } containers: {
-            MediaContainer.mp4
+            /// VLC on tvOS plays fMP4 HLS segments with the audio late by a fixed offset, so ask for MPEG-TS segments.
+            MediaContainer.ts
         }
 
         /// Create a separate profile to allow VC1 to DirectStream

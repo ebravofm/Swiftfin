@@ -40,6 +40,11 @@ struct VideoPlayerSettingsView: View {
     @Default(.VideoPlayer.resumeOffset)
     private var resumeOffset
 
+    // MARK: - Audio Defaults
+
+    @Default(.VideoPlayer.volumeNormalization)
+    private var volumeNormalization
+
     // MARK: - Slider Defaults
 
     @Default(.VideoPlayer.Overlay.chapterSlider)
@@ -311,6 +316,8 @@ struct VideoPlayerSettingsView: View {
                     updateConfiguration { $0.isRememberAudioSelections = newValue }
                 }
             ))
+
+            Toggle(L10n.volumeNormalization, isOn: $volumeNormalization)
         } learnMore: {
             LabeledContent(
                 L10n.playDefault,

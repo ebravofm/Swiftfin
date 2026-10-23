@@ -47,8 +47,28 @@ extension VideoPlayerType {
             condition: .lessThanEqual,
             isRequired: false,
             property: .videoLevel,
-            value: "80"
+            value: "\(PlaybackCapabilities.h264Limits?.level ?? 80)"
         )
+        if let limits = PlaybackCapabilities.h264Limits {
+            ProfileCondition(
+                condition: .lessThanEqual,
+                isRequired: false,
+                property: .width,
+                value: "\(limits.width)"
+            )
+            ProfileCondition(
+                condition: .lessThanEqual,
+                isRequired: false,
+                property: .height,
+                value: "\(limits.height)"
+            )
+            ProfileCondition(
+                condition: .lessThanEqual,
+                isRequired: false,
+                property: .videoFramerate,
+                value: "\(limits.framerate)"
+            )
+        }
     }
 
     @ArrayBuilder<ProfileCondition>

@@ -13,7 +13,8 @@ class Fastfile: LaneFile {
     private let bundleIdentifier = "org.jellyfin.swiftfin"
     private let xcodeProject = "Swiftfin.xcodeproj"
     private let sourcePackagesPath = "build/SourcePackages"
-    
+    private let derivedDataPath = "build/DerivedData"
+
     // MARK: - Version
     
     private struct Version: CustomStringConvertible, Equatable {
@@ -268,6 +269,7 @@ class Fastfile: LaneFile {
             skipArchive: .userDefined(false),
             skipCodesigning: .userDefined(true),
             archivePath: .userDefined("fastlane/build/\(sanitizedName(for: scheme)).xcarchive"),
+            derivedDataPath: .userDefined(derivedDataPath),
             sdk: .userDefined(sdk(forScheme: scheme)),
             xcargs: .userDefined("-skipMacroValidation"),
             skipProfileDetection: true,

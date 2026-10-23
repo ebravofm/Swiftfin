@@ -53,6 +53,14 @@ final class UserSession {
         self.user = user
     }
 
+    /// Whether `other` was built from the same server, server address, user and access token.
+    func hasSameIdentity(as other: UserSession) -> Bool {
+        server.id == other.server.id &&
+            server.effectiveServerURL == other.server.effectiveServerURL &&
+            user.id == other.user.id &&
+            user.accessToken == other.user.accessToken
+    }
+
     @MainActor
     func willStart() async {
         observeItemChanges()

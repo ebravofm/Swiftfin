@@ -31,6 +31,39 @@ enum PlaybackCapabilities {
         MTLCreateSystemDefaultDevice()?.name ?? L10n.unknown
     }
 
+    // MARK: - Hardware Limits
+
+    /// The model identifier of the device, for example `AppleTV5,3`.
+    static var modelIdentifier: String {
+        var systemInfo = utsname()
+        uname(&systemInfo)
+        return withUnsafeBytes(of: &systemInfo.machine) { buffer in
+            String(decoding: buffer.prefix(while: { $0 != 0 }), as: UTF8.self)
+        }
+    }
+
+    /// The most demanding H.264 stream a device can decode in hardware.
+    struct H264Limits {
+
+        let width: Int
+        let height: Int
+        /// In the units Jellyfin uses for `VideoLevel`, so level 4.2 is 42.
+        let level: Int
+        let framerate: Int
+    }
+
+    /// The H.264 limits of devices that decode less than the profile allows by default.
+    /// Anything above them is left to the server to transcode. Returns nil for unlisted models.
+    static var h264Limits: H264Limits? {
+        switch modelIdentifier {
+        case "AppleTV5,3": // Apple TV HD (A8)
+            H264Limits(width: 1920, height: 1080, level: 42, framerate: 60)
+
+        default:
+            nil
+        }
+    }
+
     // MARK: - Hardware Decode
 
     // MARK: MPEG / ITU-T

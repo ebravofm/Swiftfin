@@ -92,6 +92,11 @@ extension VideoPlayer.PlaybackControls.Toolbar {
                 }
             }
 
+            // Music video titles are just the song, so the artist goes in the subtitle.
+            if item.type == .musicVideo, let artist = item.artists?.first {
+                return (title: item.displayTitle, subtitle: artist)
+            }
+
             return (title: item.displayTitle, subtitle: nil)
         }
 

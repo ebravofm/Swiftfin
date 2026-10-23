@@ -8,6 +8,7 @@
 
 import Combine
 import Defaults
+import FactoryKit
 import JellyfinAPI
 import SwiftUI
 
@@ -115,10 +116,46 @@ struct ItemLibrary: MediaLibrary, SearchablePagingLibrary, WithRandomElementLibr
         )
         parameters.userID = pageState.userSession.user.id
 
+        // Without an explicit sort the server returns a playlist in the order it was built.
+        if parent.libraryType == .playlist {
+            parameters.sortBy = nil
+            parameters.sortOrder = nil
+        }
+
         let request = Paths.getItems(parameters: parameters)
         let response = try await pageState.userSession.client.send(request)
 
+        if parent.collectionType == .playlists {
+            await cacheCovers(of: response.value.items ?? [], using: pageState.userSession)
+        }
+
         return try pageState.items(from: response)
+    }
+
+    /// Remembers each playlist's first item, so its card can show that item's poster
+    /// instead of the mosaic Jellyfin builds from several items.
+    private func cacheCovers(of playlists: [BaseItemDto], using userSession: UserSession) async {
+        for playlist in playlists {
+            guard let playlistID = playlist.id else { continue }
+
+            var parameters = Paths.GetItemsParameters()
+            parameters.userID = userSession.user.id
+            parameters.parentID = playlistID
+            parameters.isRecursive = true
+            parameters.includeItemTypes = [.movie, .musicVideo, .video, .episode]
+            parameters.limit = 1
+
+            let response = try? await userSession.client.send(Paths.getItems(parameters: parameters))
+
+            if let first = response?.value.items?.first,
+               let itemID = first.id,
+               let tag = first.imageTags?["Primary"]
+            {
+                PlaylistCoverStore.shared.set(.init(itemID: itemID, tag: tag), forPlaylist: playlistID)
+            } else {
+                PlaylistCoverStore.shared.set(nil, forPlaylist: playlistID)
+            }
+        }
     }
 
     func retrieveRandomElement(
@@ -173,7 +210,9 @@ struct ItemLibrary: MediaLibrary, SearchablePagingLibrary, WithRandomElementLibr
 
         if parent.isFolderCollection {
             parameters.parentID = parentID
-            parameters.isRecursive = nil
+            // With explicit item types the server treats an omitted value as recursive,
+            // which would list every clip next to its artist folder.
+            parameters.isRecursive = parent.collectionType == .musicvideos ? false : nil
             return parameters
         }
 
@@ -329,6 +368,11 @@ private struct ItemLibraryBody<Content: View>: View {
             #endif
             .letterPickerBar(filterViewModel: filterViewModel)
             #if os(tvOS)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                LibraryPlayBar(parent: viewModel.library.parent)
+            }
+            #endif
+            #if os(tvOS)
             .background(alignment: .top) {
                 if !router.isRootOfPath {
                     FocusedPosterCinematicBackgroundView()
@@ -354,3 +398,261 @@ private struct ItemLibraryBody<Content: View>: View {
         StoredValues[.User.libraryFilters(parentID: id)] = storedFilters
     }
 }
+
+// MARK: - Playlist covers
+
+/// The poster of each playlist's first item, filled when the playlists are listed.
+///
+/// A playlist's own image is a mosaic Jellyfin builds from several items, which looks odd on a card.
+final class PlaylistCoverStore {
+
+    struct Cover {
+
+        let itemID: String
+        let tag: String
+    }
+
+    static let shared = PlaylistCoverStore()
+
+    private let lock = NSLock()
+    private var covers: [String: Cover] = [:]
+
+    func cover(forPlaylist id: String?) -> Cover? {
+        guard let id else { return nil }
+
+        lock.lock()
+        defer { lock.unlock() }
+        return covers[id]
+    }
+
+    func set(_ cover: Cover?, forPlaylist id: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        covers[id] = cover
+    }
+}
+
+// MARK: - Play All / Shuffle
+
+/// Plays the items of a library or folder one after another.
+@MainActor
+final class ListMediaPlayerQueue: ViewModel, MediaPlayerQueue {
+
+    weak var manager: MediaPlayerManager? {
+        didSet {
+            cancellables = []
+            guard let manager else { return }
+
+            manager.$playbackItem
+                .sink { [weak self] newItem in
+                    self?.didReceive(newItem: newItem)
+                }
+                .store(in: &cancellables)
+        }
+    }
+
+    let displayTitle: String
+    let id: String = "ListMediaPlayerQueue"
+
+    @Published
+    var nextItem: MediaPlayerItemProvider? = nil
+    @Published
+    var previousItem: MediaPlayerItemProvider? = nil
+
+    @Published
+    var hasNextItem: Bool = false
+    @Published
+    var hasPreviousItem: Bool = false
+
+    lazy var hasNextItemPublisher: Published<Bool>.Publisher = $hasNextItem
+    lazy var hasPreviousItemPublisher: Published<Bool>.Publisher = $hasPreviousItem
+    lazy var nextItemPublisher: Published<MediaPlayerItemProvider?>.Publisher = $nextItem
+    lazy var previousItemPublisher: Published<MediaPlayerItemProvider?>.Publisher = $previousItem
+
+    private let items: [BaseItemDto]
+
+    init(items: [BaseItemDto], displayTitle: String) {
+        self.items = items
+        self.displayTitle = displayTitle
+        super.init()
+    }
+
+    var videoPlayerBody: some PlatformView {
+        QueueOverlay(items: items)
+    }
+
+    func provider(for item: BaseItemDto) -> MediaPlayerItemProvider {
+        MediaPlayerItemProvider(item: item) { [weak self] item, modifyItem in
+            let bitrate = self?.manager?.playbackBitrate ?? Defaults[.VideoPlayer.Playback.appMaximumBitrate]
+            return try await MediaPlayerItem.build(for: item, requestedBitrate: bitrate) { item in
+                item.userData?.playbackPositionTicks = .zero
+                modifyItem?(&item)
+            }
+        }
+    }
+
+    private func didReceive(newItem: MediaPlayerItem?) {
+        guard let currentID = newItem?.baseItem.id,
+              let index = items.firstIndex(where: { $0.id == currentID })
+        else {
+            nextItem = nil
+            previousItem = nil
+            hasNextItem = false
+            hasPreviousItem = false
+            return
+        }
+
+        let next = items[safe: index + 1].map { provider(for: $0) }
+        let previous = items[safe: index - 1].map { provider(for: $0) }
+
+        nextItem = next
+        previousItem = previous
+        hasNextItem = next != nil
+        hasPreviousItem = previous != nil
+    }
+
+    private struct QueueOverlay: PlatformView {
+
+        @EnvironmentObject
+        private var manager: MediaPlayerManager
+
+        let items: [BaseItemDto]
+
+        private func select(item: BaseItemDto) {
+            let provider = MediaPlayerItemProvider(item: item) { [manager] item, modifyItem in
+                try await MediaPlayerItem.build(
+                    for: item,
+                    requestedBitrate: manager.playbackBitrate,
+                    modifyItem: modifyItem
+                )
+            }
+
+            manager.playNewItem(provider: provider)
+        }
+
+        private var list: some View {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(items, id: \.id) { item in
+                        Button {
+                            select(item: item)
+                        } label: {
+                            Text(item.displayTitle)
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+
+        var iOSView: some View {
+            list
+        }
+
+        var tvOSView: some View {
+            list
+        }
+    }
+}
+
+#if os(tvOS)
+
+/// Play All and Shuffle buttons for a library or folder.
+private struct LibraryPlayBar: View {
+
+    @Injected(\.currentUserSession)
+    private var userSession
+
+    @Router
+    private var router
+
+    @State
+    private var isLoading = false
+    @State
+    private var error: Error?
+
+    let parent: BaseItemDto
+
+    private var isVisible: Bool {
+        // The playlists view only lists playlists, so there is nothing to play at that level.
+        guard parent.id != nil, parent.collectionType != .livetv, parent.collectionType != .playlists else { return false }
+
+        switch parent.libraryType {
+        case .collectionFolder, .userView, .folder, .playlist:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var body: some View {
+        if isVisible {
+            HStack(spacing: 24) {
+                Button {
+                    play(shuffle: false)
+                } label: {
+                    Label("Play All", systemImage: "play.fill")
+                }
+
+                Button {
+                    play(shuffle: true)
+                } label: {
+                    Label("Shuffle", systemImage: "shuffle")
+                }
+
+                Spacer()
+            }
+            .disabled(isLoading)
+            .padding(.horizontal, 48)
+            .padding(.vertical, 24)
+            .errorMessage($error)
+        }
+    }
+
+    /// Plays everything under `parent`, ordered by artist or shuffled.
+    private func play(shuffle: Bool) {
+        guard let userSession, let parentID = parent.id else { return }
+
+        isLoading = true
+
+        Task {
+            defer { isLoading = false }
+
+            do {
+                var parameters = Paths.GetItemsParameters()
+                parameters.userID = userSession.user.id
+                parameters.parentID = parentID
+                parameters.isRecursive = true
+                parameters.includeItemTypes = [.movie, .musicVideo, .video, .episode]
+                parameters.fields = PosterSubtitleField.itemFields
+                parameters.enableUserData = true
+                parameters.limit = 1000
+
+                if shuffle {
+                    parameters.sortBy = [.random]
+                } else if parent.libraryType != .playlist {
+                    // A playlist keeps the order it was built in, so it gets no sort.
+                    parameters.sortBy = [.artist, .sortName]
+                    parameters.sortOrder = [.ascending]
+                }
+
+                let response = try await userSession.client.send(Paths.getItems(parameters: parameters))
+
+                guard let items = response.value.items, let first = items.first else { return }
+
+                let queue = ListMediaPlayerQueue(items: items, displayTitle: parent.displayTitle)
+
+                router.route(
+                    to: .videoPlayer(
+                        provider: queue.provider(for: first),
+                        queue: queue
+                    )
+                )
+            } catch {
+                self.error = error
+            }
+        }
+    }
+}
+
+#endif

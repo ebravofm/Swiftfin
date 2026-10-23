@@ -60,6 +60,15 @@ jobs:
           restore-keys: |
             spm-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_VERSION }}-${{ matrix.scheme }}-
 
+      # Compiled products, so later runs only rebuild what changed
+      - name: Restore build products
+        uses: actions/cache/restore@v6
+        with:
+          path: build/DerivedData
+          key: derived-data-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_VERSION }}-${{ matrix.scheme }}-${{ github.run_id }}
+          restore-keys: |
+            derived-data-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_VERSION }}-${{ matrix.scheme }}-
+
       - name: Build
         uses: nick-fields/retry@v4
         with:
@@ -87,6 +96,12 @@ jobs:
           path: fastlane/build/*-unsigned.ipa
           if-no-files-found: error
           compression-level: 0
+
+      - name: Save build products
+        uses: actions/cache/save@v6
+        with:
+          path: build/DerivedData
+          key: derived-data-v1-${{ runner.os }}-${{ runner.arch }}-${{ env.XCODE_VERSION }}-${{ matrix.scheme }}-${{ github.run_id }}
 
       # Populate the shared cache from main,
       # PR caches are isolated to their merge ref
