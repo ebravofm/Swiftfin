@@ -94,7 +94,15 @@ Los títulos de los clips son solo la canción, así que el artista se muestra a
 
 **Arreglo:** `PlaybackCapabilities.h264Limits` devuelve los límites según el identificador del modelo (`modelIdentifier`, leído con `uname`). Para `AppleTV5,3`: 1920×1080, nivel 4.2 y 60 fps. Los demás modelos devuelven `nil` y siguen con el perfil de antes (nivel 8.0, sin límite de resolución). `_h264BaseConditions` (en `VideoPlayerType+Shared.swift`, usado por AVPlayer y VLC) agrega las condiciones `width`, `height` y `videoFramerate` y baja el nivel cuando hay límites. Lo que los exceda lo transcodifica el servidor.
 
-**Estado:** sin compilar en el CI ni probar en el Apple TV. Pendiente comprobar que `uname` devuelve `AppleTV5,3` en el dispositivo y que la sesión pasa de `DirectPlay` a transcode (un `FFmpeg.Transcode-*.log` con `h264_vaapi` y `scale_vaapi=w=1920:h=1080`). El servidor ya se probó pidiendo ese transcode por HLS: 7,5 veces el tiempo real, ver `cursor-agent/jellyfin-transcode-apple-tv-hd/README.md`.
+**Estado:** verificado en el Apple TV el 2026-10-23 con la build de `4d2ba929`. `uname` devuelve `AppleTV5,3` y la sesión pasa a `Transcode` con `TranscodeReasons` `VideoLevelNotSupported` y `VideoResolutionNotSupported`. El servidor transcodifica con `h264_vaapi` y `scale_vaapi=w=1920:h=1080` a unos 220 fps (7,4 veces el tiempo real). El video dejó de dar tirones, pero con VLC el audio llegaba atrasado (ver la sección siguiente).
+
+### Segmentos MPEG-TS para VLC
+
+**Problema:** con el concierto transcodificado y el reproductor VLC, el audio iba atrasado respecto al video, con un desfase fijo. Con AVPlayer se veía sincronizado, y el archivo original se ve bien con VLC en un PC. Los segmentos fMP4 que genera Jellyfin están sincronizados: medidos en los minutos 15 y 45, audio y video empiezan con menos de 35 ms de diferencia. Los videos que se reproducen directo no tienen el problema.
+
+**Arreglo:** el perfil de transcodificación de VLC (`_vlcTranscodingProfiles`, en `VideoPlayerType+VLC.swift`) pide el contenedor `ts` en vez de `mp4`, así que Jellyfin entrega HLS con segmentos MPEG-TS. Simulando el `PlaybackInfo`, el servidor responde `SegmentContainer=ts` con los mismos códecs y motivos de transcodificación. El perfil aparte para VC1 y el de AVPlayer siguen en `mp4`.
+
+**Estado:** sin probar en el Apple TV. Si el desfase sigue con TS, la alternativa es usar AVPlayer, pero la normalización de volumen solo funciona con VLC.
 
 **Siguientes pasos previstos:** HDR y Dolby Vision (requiere activar `EnableTonemapping` en Jellyfin), subtítulos gráficos grabados en el video por el servidor, y un tope de bitrate.
 
@@ -152,7 +160,9 @@ Compilar en local exigiría Xcode 26. Según la tabla de Apple, Xcode 26.0–26.
 
 ## Instalar en el Apple TV
 
-El IPA no está firmado. Se firma e instala con **Sideloadly** y un Apple ID gratuito.
+Desde el 2026-10-23 el Apple TV está con jailbreak y la app se instala por SSH, firmada con `ldid`: ver `/Users/laptop/Documents/Proyectos/tvos-jailbreak/CLAUDE.md`. La firma necesita los entitlements `application-identifier` y `keychain-access-groups` (`org.jellyfin.swiftfin`). Sin ellos, el token no se guarda en el Keychain y el servidor responde 401 (`"Token is required"`).
+
+Antes se instalaba así: el IPA no está firmado. Se firma e instala con **Sideloadly** y un Apple ID gratuito.
 
 - Se instala con un *bundle id* propio, **`cl.datapulse.swiftfinprueba`** (*Advanced Options → Bundle ID*). Hay que **comprobar que el campo quedó con ese valor** antes de pulsar *Start*: una vez no se guardó y salió el error `MismatchedApplicationIdentifierEntitlement`.
 - Los identificadores `org.jellyfin.…` no sirven: Apple responde `An App ID with Identifier … is not available`.
